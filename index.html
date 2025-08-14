@@ -79,30 +79,6 @@
             transform: translateY(-2px);
             box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
         }
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-        .loading {
-            text-align: center;
-            color: #666;
-            padding: 40px;
-        }
-        .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
         .result {
             text-align: center;
             padding: 30px;
@@ -145,14 +121,6 @@
             color: #333;
             font-weight: 500;
         }
-        .status-active {
-            color: #28a745;
-            font-weight: 600;
-        }
-        .status-active::before {
-            content: "🟢";
-            margin-right: 5px;
-        }
         .url-section {
             background: #f8f9fa;
             border-radius: 8px;
@@ -184,26 +152,13 @@
         .copy-btn:hover {
             background: #218838;
         }
-        .action-buttons {
-            display: flex;
-            gap: 15px;
-            margin-top: 25px;
-        }
         .btn-secondary {
             background: #6c757d;
-            flex: 1;
+            margin-top: 20px;
         }
         .btn-secondary:hover {
             background: #5a6268;
             transform: translateY(-2px);
-        }
-        .error {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
-            border: 1px solid #f5c6cb;
         }
         .success-badge {
             background: #d4edda;
@@ -215,14 +170,12 @@
             display: inline-block;
             margin: 10px 0;
         }
-        .debug {
+        .note {
             background: #fff3cd;
             border: 1px solid #ffeaa7;
-            border-radius: 5px;
-            padding: 10px;
-            margin: 10px 0;
-            font-family: monospace;
-            font-size: 12px;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
             color: #856404;
         }
     </style>
@@ -231,14 +184,14 @@
     <div class="container">
         <div class="header">
             <h1>🎯 QR Survey Generator</h1>
-            <p>Create limited-access QR codes for your surveys</p>
+            <p>Create QR codes for your surveys</p>
         </div>
         
         <div class="content">
             <div id="generator-form">
                 <div class="form-group">
-                    <label for="maxResponses">How many responses do you want?</label>
-                    <input type="number" id="maxResponses" min="1" max="1000" value="25" placeholder="Enter number (1-1000)">
+                    <label for="maxResponses">Target number of responses:</label>
+                    <input type="number" id="maxResponses" min="1" max="1000" value="25" placeholder="Enter target responses (1-1000)">
                 </div>
                 
                 <button class="btn" onclick="generateQR()" id="generateBtn">
@@ -246,32 +199,23 @@
                 </button>
             </div>
             
-            <div id="loading" class="loading" style="display: none;">
-                <div class="spinner"></div>
-                <p><strong>Creating your QR code...</strong></p>
-                <p>This will take just a few seconds</p>
-            </div>
-            
-            <div id="error-message" class="error" style="display: none;"></div>
-            <div id="debug-info" class="debug" style="display: none;"></div>
-            
             <div id="qr-result" class="result" style="display: none;">
                 <h2>🎉 Your QR Code is Ready!</h2>
-                <div class="success-badge">Survey session created successfully</div>
+                <div class="success-badge">QR code generated successfully</div>
                 
                 <div class="session-info">
-                    <h3>📊 Session Details</h3>
+                    <h3>📊 QR Code Details</h3>
                     <div class="info-item">
-                        <span class="info-label">Session ID:</span>
-                        <span class="info-value" id="session-id"></span>
+                        <span class="info-label">QR Code ID:</span>
+                        <span class="info-value" id="qr-id"></span>
                     </div>
                     <div class="info-item">
-                        <span class="info-label">Maximum Responses:</span>
-                        <span class="info-value" id="max-responses"></span>
+                        <span class="info-label">Target Responses:</span>
+                        <span class="info-value" id="target-responses"></span>
                     </div>
                     <div class="info-item">
-                        <span class="info-label">Status:</span>
-                        <span id="status" class="status-active">Active</span>
+                        <span class="info-label">Links to:</span>
+                        <span class="info-value">Your Google Form</span>
                     </div>
                 </div>
                 
@@ -285,11 +229,16 @@
                     <button class="copy-btn" onclick="copyURL()">📋 Copy URL</button>
                 </div>
                 
-                <div class="action-buttons">
-                    <button class="btn btn-secondary" onclick="resetForm()">
-                        ➕ Create New QR Code
-                    </button>
+                <div class="note">
+                    <strong>📋 To track responses:</strong><br>
+                    • Check your <a href="https://docs.google.com/spreadsheets/d/1i5dPmTHa2JUcqcysHDuRn9aGEHLAzLeWEpsUFpPjSfs/edit" target="_blank">Google Form responses</a><br>
+                    • Manually close the survey when you reach your target<br>
+                    • QR code will continue working until you manually stop it
                 </div>
+                
+                <button class="btn btn-secondary" onclick="resetForm()">
+                    ➕ Create New QR Code
+                </button>
             </div>
         </div>
     </div>
@@ -298,125 +247,33 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js"></script>
     
     <script>
-        // ✅ YOUR WORKING APPS SCRIPT URL
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzxwRLt5RnkbueWm473Zqyyi9QsibPZRrEG3jIxKl0XVa4JUE5YSZAtboT-_bmOhtPzPw/exec';
-        
-        let currentSessionId = null;
+        // ✅ YOUR GOOGLE FORM URL - THIS WORKS!
+        const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSefRb6Ag85L56V39ZqTaR7Ar4jQR6IfOaP6lkNQLr6j4CFs7g/viewform';
 
         function generateQR() {
             const maxResponses = document.getElementById('maxResponses').value;
             
             if (!maxResponses || maxResponses < 1 || maxResponses > 1000) {
-                showError('Please enter a valid number of responses (1-1000)');
+                alert('Please enter a valid number of responses (1-1000)');
                 return;
             }
             
-            console.log('Starting QR generation for', maxResponses, 'responses');
+            // Generate unique QR ID
+            const qrId = 'QR_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
             
-            // Hide form and show loading
-            document.getElementById('generator-form').style.display = 'none';
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('error-message').style.display = 'none';
-            document.getElementById('qr-result').style.display = 'none';
-            document.getElementById('debug-info').style.display = 'none';
+            // The URL people will visit when they scan the QR code
+            const surveyUrl = FORM_URL;
             
-            // Generate unique callback name
-            const callbackName = 'qrCallback_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-            const url = `${SCRIPT_URL}?action=create&max_responses=${maxResponses}&callback=${callbackName}`;
-            
-            console.log('Generated callback name:', callbackName);
-            console.log('Request URL:', url);
-            
-            // Set up global callback function
-            window[callbackName] = function(data) {
-                console.log('Callback received:', data);
-                
-                // Clean up
-                try {
-                    document.head.removeChild(script);
-                } catch (e) {
-                    console.log('Script cleanup error (ignorable):', e);
-                }
-                delete window[callbackName];
-                clearTimeout(timeoutId);
-                
-                // Hide loading
-                document.getElementById('loading').style.display = 'none';
-                
-                if (data.error) {
-                    showError('Failed to generate QR code: ' + data.error);
-                    showDebug('Error response: ' + JSON.stringify(data));
-                    document.getElementById('generator-form').style.display = 'block';
-                } else {
-                    currentSessionId = data.session_id;
-                    displayQRResult(data);
-                    showDebug('Success response: ' + JSON.stringify(data));
-                }
-            };
-            
-            // Create script element for JSONP
-            const script = document.createElement('script');
-            script.src = url;
-            
-            script.onload = function() {
-                console.log('Script loaded successfully');
-            };
-            
-            script.onerror = function(e) {
-                console.error('Script loading failed:', e);
-                
-                // Clean up
-                try {
-                    document.head.removeChild(script);
-                } catch (cleanupError) {
-                    console.log('Cleanup error:', cleanupError);
-                }
-                delete window[callbackName];
-                clearTimeout(timeoutId);
-                
-                showError('Failed to connect to server. Please check your internet connection.');
-                showDebug('Script loading failed for URL: ' + url);
-                document.getElementById('generator-form').style.display = 'block';
-                document.getElementById('loading').style.display = 'none';
-            };
-            
-            // Set up timeout
-            const timeoutId = setTimeout(() => {
-                console.log('Request timed out');
-                
-                if (window[callbackName]) {
-                    try {
-                        document.head.removeChild(script);
-                    } catch (e) {
-                        console.log('Timeout cleanup error:', e);
-                    }
-                    delete window[callbackName];
-                    
-                    showError('Request timed out. Please try again.');
-                    showDebug('Timeout after 15 seconds for URL: ' + url);
-                    document.getElementById('generator-form').style.display = 'block';
-                    document.getElementById('loading').style.display = 'none';
-                }
-            }, 15000);
-            
-            // Add script to head to trigger request
-            document.head.appendChild(script);
-            console.log('Script added to head');
-        }
-        
-        function displayQRResult(data) {
-            console.log('Displaying QR result:', data);
-            
-            // Update session info
-            document.getElementById('session-id').textContent = data.session_id;
-            document.getElementById('max-responses').textContent = data.max_responses;
-            document.getElementById('survey-url').textContent = data.survey_url;
+            // Update display
+            document.getElementById('qr-id').textContent = qrId;
+            document.getElementById('target-responses').textContent = maxResponses;
+            document.getElementById('survey-url').textContent = surveyUrl;
             
             // Generate QR code
             const qrContainer = document.getElementById('qrcode');
             qrContainer.innerHTML = '';
             
-            QRCode.toCanvas(qrContainer, data.qr_data, {
+            QRCode.toCanvas(qrContainer, surveyUrl, {
                 width: 200,
                 height: 200,
                 colorDark: '#333333',
@@ -425,13 +282,14 @@
             }, function (error) {
                 if (error) {
                     console.error('QR Code generation error:', error);
-                    qrContainer.innerHTML = '<p style="color: red;">QR Code generation failed: ' + error.message + '</p>';
+                    qrContainer.innerHTML = '<p style="color: red;">QR Code generation failed</p>';
                 } else {
                     console.log('QR Code generated successfully');
                 }
             });
             
             // Show result
+            document.getElementById('generator-form').style.display = 'none';
             document.getElementById('qr-result').style.display = 'block';
             
             // Scroll to result
@@ -453,7 +311,6 @@
                         btn.textContent = originalText;
                     }, 2000);
                 }).catch(err => {
-                    console.error('Failed to copy:', err);
                     fallbackCopy(urlText);
                 });
             } else {
@@ -476,20 +333,15 @@
                     btn.textContent = originalText;
                 }, 2000);
             } catch (err) {
-                console.error('Fallback copy failed:', err);
-                showError('Failed to copy URL to clipboard');
+                alert('Failed to copy URL to clipboard');
             }
             
             document.body.removeChild(textArea);
         }
         
         function resetForm() {
-            currentSessionId = null;
-            
             document.getElementById('qr-result').style.display = 'none';
             document.getElementById('generator-form').style.display = 'block';
-            document.getElementById('error-message').style.display = 'none';
-            document.getElementById('debug-info').style.display = 'none';
             document.getElementById('maxResponses').value = '25';
             
             // Scroll to top
@@ -498,28 +350,6 @@
                 block: 'start'
             });
         }
-        
-        function showError(message) {
-            const errorDiv = document.getElementById('error-message');
-            errorDiv.textContent = '❌ ' + message;
-            errorDiv.style.display = 'block';
-            
-            // Scroll to error
-            errorDiv.scrollIntoView({ 
-                behavior: 'smooth',
-                block: 'center'
-            });
-        }
-        
-        function showDebug(message) {
-            const debugDiv = document.getElementById('debug-info');
-            debugDiv.textContent = 'Debug: ' + message;
-            debugDiv.style.display = 'block';
-        }
-        
-        // Test connection on page load
-        console.log('Page loaded, testing connection...');
-        console.log('Script URL:', SCRIPT_URL);
     </script>
 </body>
 </html>
