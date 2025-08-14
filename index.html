@@ -148,35 +148,10 @@
         .status-active {
             color: #28a745;
             font-weight: 600;
-            display: flex;
-            align-items: center;
         }
         .status-active::before {
             content: "🟢";
             margin-right: 5px;
-        }
-        .status-closed {
-            color: #dc3545;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-        }
-        .status-closed::before {
-            content: "🔴";
-            margin-right: 5px;
-        }
-        .progress-bar {
-            background: #e1e5e9;
-            border-radius: 10px;
-            height: 12px;
-            margin: 15px 0;
-            overflow: hidden;
-        }
-        .progress-fill {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            height: 100%;
-            transition: width 0.5s ease;
-            border-radius: 10px;
         }
         .url-section {
             background: #f8f9fa;
@@ -240,6 +215,16 @@
             display: inline-block;
             margin: 10px 0;
         }
+        .debug {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            color: #856404;
+        }
     </style>
 </head>
 <body>
@@ -268,6 +253,7 @@
             </div>
             
             <div id="error-message" class="error" style="display: none;"></div>
+            <div id="debug-info" class="debug" style="display: none;"></div>
             
             <div id="qr-result" class="result" style="display: none;">
                 <h2>🎉 Your QR Code is Ready!</h2>
@@ -284,20 +270,9 @@
                         <span class="info-value" id="max-responses"></span>
                     </div>
                     <div class="info-item">
-                        <span class="info-label">Current Responses:</span>
-                        <span class="info-value" id="current-responses">0</span>
-                    </div>
-                    <div class="info-item">
                         <span class="info-label">Status:</span>
                         <span id="status" class="status-active">Active</span>
                     </div>
-                    
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
-                    </div>
-                    <p style="margin: 5px 0; text-align: center; color: #666;">
-                        <span id="progress-text">0% Complete</span>
-                    </p>
                 </div>
                 
                 <div class="qr-container">
@@ -311,9 +286,6 @@
                 </div>
                 
                 <div class="action-buttons">
-                    <button class="btn" onclick="refreshStatus()" id="refreshBtn">
-                        🔄 Refresh Status
-                    </button>
                     <button class="btn btn-secondary" onclick="resetForm()">
                         ➕ Create New QR Code
                     </button>
@@ -326,11 +298,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js"></script>
     
     <script>
-        // ✅ YOUR NEW APPS SCRIPT URL
+        // ✅ YOUR WORKING APPS SCRIPT URL
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzxwRLt5RnkbueWm473Zqyyi9QsibPZRrEG3jIxKl0XVa4JUE5YSZAtboT-_bmOhtPzPw/exec';
         
         let currentSessionId = null;
-        let statusInterval = null;
 
         function generateQR() {
             const maxResponses = document.getElementById('maxResponses').value;
@@ -340,66 +311,105 @@
                 return;
             }
             
+            console.log('Starting QR generation for', maxResponses, 'responses');
+            
             // Hide form and show loading
             document.getElementById('generator-form').style.display = 'none';
             document.getElementById('loading').style.display = 'block';
             document.getElementById('error-message').style.display = 'none';
             document.getElementById('qr-result').style.display = 'none';
+            document.getElementById('debug-info').style.display = 'none';
             
-            // Use JSONP to avoid CORS issues
-            const callbackName = 'callback_' + Math.random().toString(36).substr(2, 9);
-            const url = `${SCRIPT_URL}?action=create&max_responses=${maxResponses}&callback=${callbackName}&t=${Date.now()}`;
+            // Generate unique callback name
+            const callbackName = 'qrCallback_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+            const url = `${SCRIPT_URL}?action=create&max_responses=${maxResponses}&callback=${callbackName}`;
             
-            // Set up callback function
+            console.log('Generated callback name:', callbackName);
+            console.log('Request URL:', url);
+            
+            // Set up global callback function
             window[callbackName] = function(data) {
-                console.log('Response:', data);
+                console.log('Callback received:', data);
                 
                 // Clean up
-                document.head.removeChild(script);
+                try {
+                    document.head.removeChild(script);
+                } catch (e) {
+                    console.log('Script cleanup error (ignorable):', e);
+                }
                 delete window[callbackName];
+                clearTimeout(timeoutId);
+                
+                // Hide loading
+                document.getElementById('loading').style.display = 'none';
                 
                 if (data.error) {
                     showError('Failed to generate QR code: ' + data.error);
+                    showDebug('Error response: ' + JSON.stringify(data));
                     document.getElementById('generator-form').style.display = 'block';
                 } else {
                     currentSessionId = data.session_id;
                     displayQRResult(data);
-                    startStatusPolling();
+                    showDebug('Success response: ' + JSON.stringify(data));
                 }
-                
-                document.getElementById('loading').style.display = 'none';
             };
             
             // Create script element for JSONP
             const script = document.createElement('script');
             script.src = url;
-            script.onerror = function() {
-                document.head.removeChild(script);
+            
+            script.onload = function() {
+                console.log('Script loaded successfully');
+            };
+            
+            script.onerror = function(e) {
+                console.error('Script loading failed:', e);
+                
+                // Clean up
+                try {
+                    document.head.removeChild(script);
+                } catch (cleanupError) {
+                    console.log('Cleanup error:', cleanupError);
+                }
                 delete window[callbackName];
+                clearTimeout(timeoutId);
+                
                 showError('Failed to connect to server. Please check your internet connection.');
+                showDebug('Script loading failed for URL: ' + url);
                 document.getElementById('generator-form').style.display = 'block';
                 document.getElementById('loading').style.display = 'none';
             };
             
-            document.head.appendChild(script);
-            
-            // Timeout fallback
-            setTimeout(() => {
+            // Set up timeout
+            const timeoutId = setTimeout(() => {
+                console.log('Request timed out');
+                
                 if (window[callbackName]) {
-                    document.head.removeChild(script);
+                    try {
+                        document.head.removeChild(script);
+                    } catch (e) {
+                        console.log('Timeout cleanup error:', e);
+                    }
                     delete window[callbackName];
+                    
                     showError('Request timed out. Please try again.');
+                    showDebug('Timeout after 15 seconds for URL: ' + url);
                     document.getElementById('generator-form').style.display = 'block';
                     document.getElementById('loading').style.display = 'none';
                 }
             }, 15000);
+            
+            // Add script to head to trigger request
+            document.head.appendChild(script);
+            console.log('Script added to head');
         }
         
         function displayQRResult(data) {
+            console.log('Displaying QR result:', data);
+            
             // Update session info
             document.getElementById('session-id').textContent = data.session_id;
             document.getElementById('max-responses').textContent = data.max_responses;
-            document.getElementById('current-responses').textContent = data.current_responses || 0;
             document.getElementById('survey-url').textContent = data.survey_url;
             
             // Generate QR code
@@ -415,7 +425,9 @@
             }, function (error) {
                 if (error) {
                     console.error('QR Code generation error:', error);
-                    qrContainer.innerHTML = '<p style="color: red;">QR Code generation failed</p>';
+                    qrContainer.innerHTML = '<p style="color: red;">QR Code generation failed: ' + error.message + '</p>';
+                } else {
+                    console.log('QR Code generated successfully');
                 }
             });
             
@@ -429,133 +441,55 @@
             });
         }
         
-        function startStatusPolling() {
-            if (statusInterval) {
-                clearInterval(statusInterval);
-            }
-            
-            // Poll every 30 seconds
-            statusInterval = setInterval(() => {
-                if (currentSessionId) {
-                    refreshStatus(false);
-                }
-            }, 30000);
-        }
-        
-        function refreshStatus(showLoading = true) {
-            if (!currentSessionId) return;
-            
-            if (showLoading) {
-                const refreshBtn = document.getElementById('refreshBtn');
-                refreshBtn.disabled = true;
-                refreshBtn.textContent = '🔄 Refreshing...';
-            }
-            
-            // Use JSONP for status check too
-            const callbackName = 'status_' + Math.random().toString(36).substr(2, 9);
-            const url = `${SCRIPT_URL}?action=status&session=${currentSessionId}&callback=${callbackName}&t=${Date.now()}`;
-            
-            window[callbackName] = function(data) {
-                document.head.removeChild(script);
-                delete window[callbackName];
-                
-                if (data.error) {
-                    console.warn('Status error:', data.error);
-                } else {
-                    updateStatus(data);
-                }
-                
-                if (showLoading) {
-                    const refreshBtn = document.getElementById('refreshBtn');
-                    refreshBtn.disabled = false;
-                    refreshBtn.textContent = '🔄 Refresh Status';
-                }
-            };
-            
-            const script = document.createElement('script');
-            script.src = url;
-            script.onerror = function() {
-                document.head.removeChild(script);
-                delete window[callbackName];
-                
-                if (showLoading) {
-                    const refreshBtn = document.getElementById('refreshBtn');
-                    refreshBtn.disabled = false;
-                    refreshBtn.textContent = '🔄 Refresh Status';
-                    console.warn('Failed to refresh status');
-                }
-            };
-            
-            document.head.appendChild(script);
-        }
-        
-        function updateStatus(data) {
-            document.getElementById('current-responses').textContent = data.current_responses;
-            
-            const statusElement = document.getElementById('status');
-            if (data.session_status === 'active') {
-                statusElement.textContent = 'Active';
-                statusElement.className = 'status-active';
-            } else {
-                statusElement.textContent = 'Closed';
-                statusElement.className = 'status-closed';
-                
-                // Stop polling if closed
-                if (statusInterval) {
-                    clearInterval(statusInterval);
-                }
-            }
-            
-            // Update progress bar
-            const progressFill = document.getElementById('progress-fill');
-            const progressText = document.getElementById('progress-text');
-            const progress = data.progress || 0;
-            
-            progressFill.style.width = progress + '%';
-            progressText.textContent = progress + '% Complete';
-        }
-        
         function copyURL() {
             const urlText = document.getElementById('survey-url').textContent;
-            navigator.clipboard.writeText(urlText).then(() => {
-                const btn = event.target;
-                const originalText = btn.textContent;
-                btn.textContent = '✅ Copied!';
-                setTimeout(() => {
-                    btn.textContent = originalText;
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy:', err);
-                // Fallback for older browsers
-                const textArea = document.createElement('textarea');
-                textArea.value = urlText;
-                document.body.appendChild(textArea);
-                textArea.select();
-                try {
-                    document.execCommand('copy');
+            
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(urlText).then(() => {
                     const btn = event.target;
                     const originalText = btn.textContent;
                     btn.textContent = '✅ Copied!';
                     setTimeout(() => {
                         btn.textContent = originalText;
                     }, 2000);
-                } catch (err) {
-                    showError('Failed to copy URL to clipboard');
-                }
-                document.body.removeChild(textArea);
-            });
+                }).catch(err => {
+                    console.error('Failed to copy:', err);
+                    fallbackCopy(urlText);
+                });
+            } else {
+                fallbackCopy(urlText);
+            }
+        }
+        
+        function fallbackCopy(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = '✅ Copied!';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 2000);
+            } catch (err) {
+                console.error('Fallback copy failed:', err);
+                showError('Failed to copy URL to clipboard');
+            }
+            
+            document.body.removeChild(textArea);
         }
         
         function resetForm() {
             currentSessionId = null;
             
-            if (statusInterval) {
-                clearInterval(statusInterval);
-            }
-            
             document.getElementById('qr-result').style.display = 'none';
             document.getElementById('generator-form').style.display = 'block';
             document.getElementById('error-message').style.display = 'none';
+            document.getElementById('debug-info').style.display = 'none';
             document.getElementById('maxResponses').value = '25';
             
             // Scroll to top
@@ -577,19 +511,15 @@
             });
         }
         
-        // Auto-refresh when page becomes visible
-        document.addEventListener('visibilitychange', function() {
-            if (!document.hidden && currentSessionId) {
-                refreshStatus(false);
-            }
-        });
+        function showDebug(message) {
+            const debugDiv = document.getElementById('debug-info');
+            debugDiv.textContent = 'Debug: ' + message;
+            debugDiv.style.display = 'block';
+        }
         
-        // Clean up intervals when page unloads
-        window.addEventListener('beforeunload', function() {
-            if (statusInterval) {
-                clearInterval(statusInterval);
-            }
-        });
+        // Test connection on page load
+        console.log('Page loaded, testing connection...');
+        console.log('Script URL:', SCRIPT_URL);
     </script>
 </body>
 </html>
