@@ -326,8 +326,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js"></script>
     
     <script>
-        // ✅ YOUR ACTUAL APPS SCRIPT URL - FIXED VERSION
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzp_aOrFpB5yh93_WRrA0ofKK9w4Fd5cQfAb3tKgUrwAt_Eni51kOHXlchaGslkDiUBzQ/exec';
+        // ✅ YOUR NEW APPS SCRIPT URL
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzxwRLt5RnkbueWm473Zqyyi9QsibPZRrEG3jIxKl0XVa4JUE5YSZAtboT-_bmOhtPzPw/exec';
         
         let currentSessionId = null;
         let statusInterval = null;
@@ -346,37 +346,53 @@
             document.getElementById('error-message').style.display = 'none';
             document.getElementById('qr-result').style.display = 'none';
             
-            // Use image request to avoid CORS (simplest method)
-            const img = new Image();
-            const timestamp = Date.now();
-            const sessionId = 'qr_' + timestamp + '_' + Math.random().toString(36).substring(2, 6);
+            // Use JSONP to avoid CORS issues
+            const callbackName = 'callback_' + Math.random().toString(36).substr(2, 9);
+            const url = `${SCRIPT_URL}?action=create&max_responses=${maxResponses}&callback=${callbackName}&t=${Date.now()}`;
             
-            img.onload = function() {
-                // If image loads, assume session was created
-                const surveyUrl = SCRIPT_URL + '?action=access&session=' + sessionId;
+            // Set up callback function
+            window[callbackName] = function(data) {
+                console.log('Response:', data);
                 
-                const data = {
-                    status: 'created',
-                    session_id: sessionId,
-                    survey_url: surveyUrl,
-                    max_responses: maxResponses,
-                    qr_data: surveyUrl,
-                    current_responses: 0
-                };
+                // Clean up
+                document.head.removeChild(script);
+                delete window[callbackName];
                 
-                currentSessionId = sessionId;
-                displayQRResult(data);
+                if (data.error) {
+                    showError('Failed to generate QR code: ' + data.error);
+                    document.getElementById('generator-form').style.display = 'block';
+                } else {
+                    currentSessionId = data.session_id;
+                    displayQRResult(data);
+                    startStatusPolling();
+                }
+                
                 document.getElementById('loading').style.display = 'none';
             };
             
-            img.onerror = function() {
+            // Create script element for JSONP
+            const script = document.createElement('script');
+            script.src = url;
+            script.onerror = function() {
+                document.head.removeChild(script);
+                delete window[callbackName];
                 showError('Failed to connect to server. Please check your internet connection.');
                 document.getElementById('generator-form').style.display = 'block';
                 document.getElementById('loading').style.display = 'none';
             };
             
-            // Trigger session creation via image request
-            img.src = SCRIPT_URL + '?action=create&max_responses=' + maxResponses + '&session=' + sessionId + '&t=' + timestamp;
+            document.head.appendChild(script);
+            
+            // Timeout fallback
+            setTimeout(() => {
+                if (window[callbackName]) {
+                    document.head.removeChild(script);
+                    delete window[callbackName];
+                    showError('Request timed out. Please try again.');
+                    document.getElementById('generator-form').style.display = 'block';
+                    document.getElementById('loading').style.display = 'none';
+                }
+            }, 15000);
         }
         
         function displayQRResult(data) {
@@ -413,6 +429,19 @@
             });
         }
         
+        function startStatusPolling() {
+            if (statusInterval) {
+                clearInterval(statusInterval);
+            }
+            
+            // Poll every 30 seconds
+            statusInterval = setInterval(() => {
+                if (currentSessionId) {
+                    refreshStatus(false);
+                }
+            }, 30000);
+        }
+        
         function refreshStatus(showLoading = true) {
             if (!currentSessionId) return;
             
@@ -422,26 +451,42 @@
                 refreshBtn.textContent = '🔄 Refreshing...';
             }
             
-            // Use image request for status check
-            const img = new Image();
-            img.onload = function() {
-                // For now, just show that it's working
-                console.log('Status check completed');
-            };
+            // Use JSONP for status check too
+            const callbackName = 'status_' + Math.random().toString(36).substr(2, 9);
+            const url = `${SCRIPT_URL}?action=status&session=${currentSessionId}&callback=${callbackName}&t=${Date.now()}`;
             
-            img.onerror = function() {
-                console.log('Status check failed');
-            };
-            
-            img.src = SCRIPT_URL + '?action=status&session=' + currentSessionId + '&t=' + Date.now();
-            
-            if (showLoading) {
-                setTimeout(() => {
+            window[callbackName] = function(data) {
+                document.head.removeChild(script);
+                delete window[callbackName];
+                
+                if (data.error) {
+                    console.warn('Status error:', data.error);
+                } else {
+                    updateStatus(data);
+                }
+                
+                if (showLoading) {
                     const refreshBtn = document.getElementById('refreshBtn');
                     refreshBtn.disabled = false;
                     refreshBtn.textContent = '🔄 Refresh Status';
-                }, 1000);
-            }
+                }
+            };
+            
+            const script = document.createElement('script');
+            script.src = url;
+            script.onerror = function() {
+                document.head.removeChild(script);
+                delete window[callbackName];
+                
+                if (showLoading) {
+                    const refreshBtn = document.getElementById('refreshBtn');
+                    refreshBtn.disabled = false;
+                    refreshBtn.textContent = '🔄 Refresh Status';
+                    console.warn('Failed to refresh status');
+                }
+            };
+            
+            document.head.appendChild(script);
         }
         
         function updateStatus(data) {
@@ -454,6 +499,11 @@
             } else {
                 statusElement.textContent = 'Closed';
                 statusElement.className = 'status-closed';
+                
+                // Stop polling if closed
+                if (statusInterval) {
+                    clearInterval(statusInterval);
+                }
             }
             
             // Update progress bar
@@ -526,6 +576,20 @@
                 block: 'center'
             });
         }
+        
+        // Auto-refresh when page becomes visible
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden && currentSessionId) {
+                refreshStatus(false);
+            }
+        });
+        
+        // Clean up intervals when page unloads
+        window.addEventListener('beforeunload', function() {
+            if (statusInterval) {
+                clearInterval(statusInterval);
+            }
+        });
     </script>
 </body>
 </html>
