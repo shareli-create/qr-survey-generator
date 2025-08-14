@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>QR Survey Generator</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 40px 30px;
+        }
+        .form-group {
+            margin-bottom: 30px;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 18px;
+            transition: all 0.3s;
+            box-sizing: border-box;
+        }
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 18px 30px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+            padding: 40px;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .result {
+            text-align: center;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            margin-top: 30px;
+        }
+        .qr-container {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            display: inline-block;
+            margin: 20px 0;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .session-info {
+            background: white;
+            border: 2px solid #e1e5e9;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .session-info h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 18px;
+        }
+        .info-item {
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .info-label {
+            font-weight: 600;
+            color: #555;
+        }
+        .info-value {
+            color: #333;
+            font-weight: 500;
+        }
+        .status-active {
+            color: #28a745;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
+        .status-active::before {
+            content: "🟢";
+            margin-right: 5px;
+        }
+        .status-closed {
+            color: #dc3545;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
+        .status-closed::before {
+            content: "🔴";
+            margin-right: 5px;
+        }
+        .progress-bar {
+            background: #e1e5e9;
+            border-radius: 10px;
+            height: 12px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+        .progress-fill {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100%;
+            transition: width 0.5s ease;
+            border-radius: 10px;
+        }
+        .url-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .url-box {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            word-break: break-all;
+            margin: 10px 0;
+            color: #495057;
+        }
+        .copy-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+        .copy-btn:hover {
+            background: #218838;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            flex: 1;
+        }
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #f5c6cb;
+        }
+        .success-badge {
+            background: #d4edda;
+            color: #155724;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            display: inline-block;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 QR Survey Generator</h1>
+            <p>Create limited-access QR codes for your surveys</p>
+        </div>
+        
+        <div class="content">
+            <div id="generator-form">
+                <div class="form-group">
+                    <label for="maxResponses">How many responses do you want?</label>
+                    <input type="number" id="maxResponses" min="1" max="1000" value="25" placeholder="Enter number (1-1000)">
+                </div>
+                
+                <button class="btn" onclick="generateQR()" id="generateBtn">
+                    🚀 Generate QR Code
+                </button>
+            </div>
+            
+            <div id="loading" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p><strong>Creating your QR code...</strong></p>
+                <p>This will take just a few seconds</p>
+            </div>
+            
+            <div id="error-message" class="error" style="display: none;"></div>
+            
+            <div id="qr-result" class="result" style="display: none;">
+                <h2>🎉 Your QR Code is Ready!</h2>
+                <div class="success-badge">Survey session created successfully</div>
+                
+                <div class="session-info">
+                    <h3>📊 Session Details</h3>
+                    <div class="info-item">
+                        <span class="info-label">Session ID:</span>
+                        <span class="info-value" id="session-id"></span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Maximum Responses:</span>
+                        <span class="info-value" id="max-responses"></span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Current Responses:</span>
+                        <span class="info-value" id="current-responses">0</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Status:</span>
+                        <span id="status" class="status-active">Active</span>
+                    </div>
+                    
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <p style="margin: 5px 0; text-align: center; color: #666;">
+                        <span id="progress-text">0% Complete</span>
+                    </p>
+                </div>
+                
+                <div class="qr-container">
+                    <div id="qrcode"></div>
+                </div>
+                
+                <div class="url-section">
+                    <h4 style="margin: 0 0 10px 0; color: #555;">📱 Survey URL:</h4>
+                    <div class="url-box" id="survey-url"></div>
+                    <button class="copy-btn" onclick="copyURL()">📋 Copy URL</button>
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="btn" onclick="refreshStatus()" id="refreshBtn">
+                        🔄 Refresh Status
+                    </button>
+                    <button class="btn btn-secondary" onclick="resetForm()">
+                        ➕ Create New QR Code
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR Code Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js"></script>
+    
+    <script>
+        // ✅ YOUR ACTUAL APPS SCRIPT URL
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzp_aOrFpB5yh93_WRrA0ofKK9w4Fd5cQfAb3tKgUrwAt_Eni51kOHXlchaGslkDiUBzQ/exec';
+        
+        let currentSessionId = null;
+        let statusInterval = null;
+
+        function generateQR() {
+            const maxResponses = document.getElementById('maxResponses').value;
+            
+            if (!maxResponses || maxResponses < 1 || maxResponses > 1000) {
+                showError('Please enter a valid number of responses (1-1000)');
+                return;
+            }
+            
+            // Hide form and show loading
+            document.getElementById('generator-form').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error-message').style.display = 'none';
+            document.getElementById('qr-result').style.display = 'none';
+            
+            // Create session
+            const url = `${SCRIPT_URL}?action=create&max_responses=${maxResponses}&t=${Date.now()}`;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Response:', data);
+                    
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    currentSessionId = data.session_id;
+                    displayQRResult(data);
+                    startStatusPolling();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showError('Failed to generate QR code: ' + error.message);
+                    document.getElementById('generator-form').style.display = 'block';
+                })
+                .finally(() => {
+                    document.getElementById('loading').style.display = 'none';
+                });
+        }
+        
+        function displayQRResult(data) {
+            // Update session info
+            document.getElementById('session-id').textContent = data.session_id;
+            document.getElementById('max-responses').textContent = data.max_responses;
+            document.getElementById('current-responses').textContent = data.current_responses || 0;
+            document.getElementById('survey-url').textContent = data.survey_url;
+            
+            // Generate QR code
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = '';
+            
+            QRCode.toCanvas(qrContainer, data.qr_data, {
+                width: 200,
+                height: 200,
+                colorDark: '#333333',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.M
+            }, function (error) {
+                if (error) {
+                    console.error('QR Code generation error:', error);
+                    qrContainer.innerHTML = '<p style="color: red;">QR Code generation failed</p>';
+                }
+            });
+            
+            // Show result
+            document.getElementById('qr-result').style.display = 'block';
+            
+            // Scroll to result
+            document.getElementById('qr-result').scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+        
+        function startStatusPolling() {
+            if (statusInterval) {
+                clearInterval(statusInterval);
+            }
+            
+            // Poll every 15 seconds
+            statusInterval = setInterval(() => {
+                if (currentSessionId) {
+                    refreshStatus(false);
+                }
+            }, 15000);
+        }
+        
+        function refreshStatus(showLoading = true) {
+            if (!currentSessionId) return;
+            
+            if (showLoading) {
+                const refreshBtn = document.getElementById('refreshBtn');
+                refreshBtn.disabled = true;
+                refreshBtn.textContent = '🔄 Refreshing...';
+            }
+            
+            const url = `${SCRIPT_URL}?action=status&session=${currentSessionId}&t=${Date.now()}`;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.warn('Status error:', data.error);
+                        return;
+                    }
+                    
+                    updateStatus(data);
+                })
+                .catch(error => {
+                    console.error('Error refreshing status:', error);
+                    if (showLoading) {
+                        showError('Failed to refresh status: ' + error.message);
+                    }
+                })
+                .finally(() => {
+                    if (showLoading) {
+                        const refreshBtn = document.getElementById('refreshBtn');
+                        refreshBtn.disabled = false;
+                        refreshBtn.textContent = '🔄 Refresh Status';
+                    }
+                });
+        }
+        
+        function updateStatus(data) {
+            document.getElementById('current-responses').textContent = data.current_responses;
+            
+            const statusElement = document.getElementById('status');
+            if (data.session_status === 'active') {
+                statusElement.textContent = 'Active';
+                statusElement.className = 'status-active';
+            } else {
+                statusElement.textContent = 'Closed';
+                statusElement.className = 'status-closed';
+                
+                // Stop polling if closed
+                if (statusInterval) {
+                    clearInterval(statusInterval);
+                }
+            }
+            
+            // Update progress bar
+            const progressFill = document.getElementById('progress-fill');
+            const progressText = document.getElementById('progress-text');
+            const progress = data.progress || 0;
+            
+            progressFill.style.width = progress + '%';
+            progressText.textContent = progress + '% Complete';
+        }
+        
+        function copyURL() {
+            const urlText = document.getElementById('survey-url').textContent;
+            navigator.clipboard.writeText(urlText).then(() => {
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = '✅ Copied!';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = urlText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    const btn = event.target;
+                    const originalText = btn.textContent;
+                    btn.textContent = '✅ Copied!';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                    }, 2000);
+                } catch (err) {
+                    showError('Failed to copy URL to clipboard');
+                }
+                document.body.removeChild(textArea);
+            });
+        }
+        
+        function resetForm() {
+            currentSessionId = null;
+            
+            if (statusInterval) {
+                clearInterval(statusInterval);
+            }
+            
+            document.getElementById('qr-result').style.display = 'none';
+            document.getElementById('generator-form').style.display = 'block';
+            document.getElementById('error-message').style.display = 'none';
+            document.getElementById('maxResponses').value = '25';
+            
+            // Scroll to top
+            document.querySelector('.header').scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = '❌ ' + message;
+            errorDiv.style.display = 'block';
+            
+            // Scroll to error
+            errorDiv.scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'center'
+            });
+        }
+        
+        // Auto-refresh when page becomes visible
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden && currentSessionId) {
+                refreshStatus(false);
+            }
+        });
+        
+        // Clean up intervals when page unloads
+        window.addEventListener('beforeunload', function() {
+            if (statusInterval) {
+                clearInterval(statusInterval);
+            }
+        });
+    </script>
+</body>
+</html>
