@@ -346,30 +346,53 @@
             document.getElementById('error-message').style.display = 'none';
             document.getElementById('qr-result').style.display = 'none';
             
-            // Create session
-            const url = `${SCRIPT_URL}?action=create&max_responses=${maxResponses}&t=${Date.now()}`;
+            // Use JSONP to avoid CORS issues
+            const callbackName = 'callback_' + Math.random().toString(36).substr(2, 9);
+            const url = `${SCRIPT_URL}?action=create&max_responses=${maxResponses}&callback=${callbackName}&t=${Date.now()}`;
             
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Response:', data);
-                    
-                    if (data.error) {
-                        throw new Error(data.error);
-                    }
-                    
+            // Set up callback function
+            window[callbackName] = function(data) {
+                console.log('Response:', data);
+                
+                // Clean up
+                document.head.removeChild(script);
+                delete window[callbackName];
+                
+                if (data.error) {
+                    showError('Failed to generate QR code: ' + data.error);
+                    document.getElementById('generator-form').style.display = 'block';
+                } else {
                     currentSessionId = data.session_id;
                     displayQRResult(data);
                     startStatusPolling();
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    showError('Failed to generate QR code: ' + error.message);
+                }
+                
+                document.getElementById('loading').style.display = 'none';
+            };
+            
+            // Create script element for JSONP
+            const script = document.createElement('script');
+            script.src = url;
+            script.onerror = function() {
+                document.head.removeChild(script);
+                delete window[callbackName];
+                showError('Failed to connect to server. Please check your internet connection.');
+                document.getElementById('generator-form').style.display = 'block';
+                document.getElementById('loading').style.display = 'none';
+            };
+            
+            document.head.appendChild(script);
+            
+            // Timeout fallback
+            setTimeout(() => {
+                if (window[callbackName]) {
+                    document.head.removeChild(script);
+                    delete window[callbackName];
+                    showError('Request timed out. Please try again.');
                     document.getElementById('generator-form').style.display = 'block';
-                })
-                .finally(() => {
                     document.getElementById('loading').style.display = 'none';
-                });
+                }
+            }, 15000);
         }
         
         function displayQRResult(data) {
@@ -428,31 +451,42 @@
                 refreshBtn.textContent = '🔄 Refreshing...';
             }
             
-            const url = `${SCRIPT_URL}?action=status&session=${currentSessionId}&t=${Date.now()}`;
+            // Use JSONP for status check too
+            const callbackName = 'status_' + Math.random().toString(36).substr(2, 9);
+            const url = `${SCRIPT_URL}?action=status&session=${currentSessionId}&callback=${callbackName}&t=${Date.now()}`;
             
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        console.warn('Status error:', data.error);
-                        return;
-                    }
-                    
+            window[callbackName] = function(data) {
+                document.head.removeChild(script);
+                delete window[callbackName];
+                
+                if (data.error) {
+                    console.warn('Status error:', data.error);
+                } else {
                     updateStatus(data);
-                })
-                .catch(error => {
-                    console.error('Error refreshing status:', error);
-                    if (showLoading) {
-                        showError('Failed to refresh status: ' + error.message);
-                    }
-                })
-                .finally(() => {
-                    if (showLoading) {
-                        const refreshBtn = document.getElementById('refreshBtn');
-                        refreshBtn.disabled = false;
-                        refreshBtn.textContent = '🔄 Refresh Status';
-                    }
-                });
+                }
+                
+                if (showLoading) {
+                    const refreshBtn = document.getElementById('refreshBtn');
+                    refreshBtn.disabled = false;
+                    refreshBtn.textContent = '🔄 Refresh Status';
+                }
+            };
+            
+            const script = document.createElement('script');
+            script.src = url;
+            script.onerror = function() {
+                document.head.removeChild(script);
+                delete window[callbackName];
+                
+                if (showLoading) {
+                    const refreshBtn = document.getElementById('refreshBtn');
+                    refreshBtn.disabled = false;
+                    refreshBtn.textContent = '🔄 Refresh Status';
+                    showError('Failed to refresh status');
+                }
+            };
+            
+            document.head.appendChild(script);
         }
         
         function updateStatus(data) {
